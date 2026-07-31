@@ -13,7 +13,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,13 +32,18 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
-      - name: Build EXE
+      - name: Verify lazy startup imports
+        shell: pwsh
+        run: |
+          python -c "import sys; import ai_office_vietnam.ui.main_window; blocked={'google.genai','fitz','docx','PIL','keyring'}; loaded=sorted(name for name in blocked if name in sys.modules); assert not loaded, f'Heavy modules loaded at startup: {loaded}'"
+
+      - name: Build fast portable application
         shell: pwsh
         run: |
           pyinstaller `
             --noconfirm `
             --clean `
-            --onefile `
+            --onedir `
             --windowed `
             --name "Doi-PDF-sang-Word-Bang-Son" `
             --collect-all keyring `
@@ -48,18 +53,29 @@ jobs:
             --hidden-import fitz `
             ai_office_vietnam/main.py
 
-      - name: Create checksum
+      - name: Create portable ZIP and checksum
         shell: pwsh
         run: |
-          $hash = (Get-FileHash dist/Doi-PDF-sang-Word-Bang-Son.exe -Algorithm SHA256).Hash
-          "$hash  Doi-PDF-sang-Word-Bang-Son.exe" | Out-File -Encoding ascii dist/SHA256SUMS.txt
+          Compress-Archive -Path "dist/Doi-PDF-sang-Word-Bang-Son" -DestinationPath "dist/Doi-PDF-sang-Word-Bang-Son-Portable.zip" -Force
+          $hash = (Get-FileHash "dist/Doi-PDF-sang-Word-Bang-Son/Doi-PDF-sang-Word-Bang-Son.exe" -Algorithm SHA256).Hash
+          "$hash  Doi-PDF-sang-Word-Bang-Son.exe" | Out-File -Encoding ascii "dist/SHA256SUMS.txt"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "build\installer.iss"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Doi-PDF-sang-Word-Bang-Son-Windows
+          name: Doi-PDF-sang-Word-Bang-Son-Fast-Windows
           path: |
-            dist/Doi-PDF-sang-Word-Bang-Son.exe
+            dist/Doi-PDF-sang-Word-Bang-Son-Portable.zip
             dist/SHA256SUMS.txt
+            dist-installer/Setup-Doi-PDF-sang-Word-Bang-Son.exe
           if-no-files-found: error
           retention-days: 30
