@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#174d91" />
+  <title>Đổi PDF sang Word (Băng Sơn)</title>
+  <style>
+    body{font-family:Segoe UI,Arial,sans-serif;background:#f4f6f9;color:#1f2937;margin:0;display:grid;place-items:center;min-height:100vh}
+    .loading{background:#fff;border:1px solid #d7dee8;border-radius:14px;padding:28px;box-shadow:0 8px 30px #10204018;text-align:center;max-width:460px}
+    h1{color:#174d91;font-size:1.35rem;margin:0 0 8px}p{color:#667085;margin:0}.bar{height:8px;background:#e8eef6;border-radius:99px;overflow:hidden;margin-top:18px}.bar:after{content:"";display:block;height:100%;width:45%;background:#2467b2;border-radius:99px;animation:move 1s infinite alternate}@keyframes move{to{transform:translateX(120%)}}
+  </style>
+</head>
+<body>
+  <div class="loading"><h1>Đổi PDF sang Word (Băng Sơn)</h1><p id="status">Đang tải ứng dụng web…</p><div class="bar"></div></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    (async()=>{
+      const status=document.getElementById('status');
+      try{
+        const response=await fetch('./pwa-pdf-word.zip',{cache:'no-cache'});
+        if(!response.ok)throw new Error('Không tải được gói ứng dụng.');
+        const zip=await JSZip.loadAsync(await response.arrayBuffer());
+        const base='pwa-pdf-word/';
+        let html=await zip.file(base+'index.html').async('string');
+        const css=await zip.file(base+'styles.css').async('string');
+        let js=await zip.file(base+'app.js').async('string');
+        html=html.replace(/\s*<link rel="manifest"[^>]*>/,'')
+                 .replace(/\s*<link rel="icon"[^>]*>/,'')
+                 .replace(/\s*<link rel="stylesheet" href="\.\/styles\.css"\s*\/>/,`<style>${css}</style>`)
+                 .replace(/\s*<script src="\.\/app\.js" defer><\/script>/,`<script>${js.replace(/<\/script>/gi,'<\\/script>')}<\/script>`);
+        html=html.replace('navigator.serviceWorker.register("./sw.js").catch(() => {});','/* standalone web build */');
+        document.open();document.write(html);document.close();
+      }catch(error){status.textContent='Không thể mở ứng dụng: '+(error.message||error);document.querySelector('.bar').style.display='none';}
+    })();
+  </script>
+</body>
+</html>
