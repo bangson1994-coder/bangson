@@ -7,6 +7,8 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from ai_office_vietnam.ui.main_window import MainWindow
 
+APP_DISPLAY_NAME = "Đổi PDF sang Word (Băng Sơn)"
+
 
 def main() -> int:
     QCoreApplication.setOrganizationName("BangSon")
@@ -15,13 +17,17 @@ def main() -> int:
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
     app = QApplication(sys.argv)
-    app.setApplicationDisplayName("AI Office Việt Nam")
+    app.setApplicationDisplayName(APP_DISPLAY_NAME)
     try:
         window = MainWindow()
         window.show()
         return app.exec()
     except Exception as exc:
-        QMessageBox.critical(None, "AI Office Việt Nam", f"Không thể khởi động ứng dụng:\n{exc}")
+        QMessageBox.critical(
+            None,
+            APP_DISPLAY_NAME,
+            f"Không thể khởi động ứng dụng:\n{exc}",
+        )
         return 1
 
 
