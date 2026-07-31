@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
@@ -22,15 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from ai_office_vietnam.config import AppSettings, get_api_key
-from ai_office_vietnam.models import ConversionResult
-from ai_office_vietnam.services.converter import (
-    IMAGE_EXTENSIONS,
-    ConversionCancelled,
-    DocumentConverter,
-)
-from ai_office_vietnam.ui.settings_dialog import SettingsDialog
 
 APP_NAME = "Đổi PDF sang Word (Băng Sơn)"
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 SUPPORTED_EXTENSIONS = {".pdf", *IMAGE_EXTENSIONS}
 FILE_FILTER = "PDF và ảnh (*.pdf *.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)"
 
@@ -100,6 +95,12 @@ class ConversionWorker(QThread):
         self._cancelled = True
 
     def run(self) -> None:
+        # Các thư viện nặng chỉ được nạp sau khi bấm chuyển đổi.
+        from ai_office_vietnam.services.converter import (
+            ConversionCancelled,
+            DocumentConverter,
+        )
+
         succeeded = failed = 0
         converter = DocumentConverter()
         total = max(1, len(self.files))
@@ -304,6 +305,9 @@ class MainWindow(QMainWindow):
             self._refresh_summary()
 
     def _open_settings(self) -> None:
+        # Hộp cài đặt có kiểm tra Gemini nên chỉ nạp khi người dùng mở.
+        from ai_office_vietnam.ui.settings_dialog import SettingsDialog
+
         dialog = SettingsDialog(self.settings, self)
         if dialog.exec():
             self.settings = dialog.settings
@@ -339,7 +343,8 @@ class MainWindow(QMainWindow):
                 "Chuyển ảnh sang Word cần bật Gemini trong Cài đặt.",
             )
             return
-        if self.settings.use_ai and not get_api_key():
+        api_key = get_api_key() if self.settings.use_ai else ""
+        if self.settings.use_ai and not api_key:
             QMessageBox.warning(self, "Thiếu API key", "Hãy nhập Gemini API key trong Cài đặt.")
             return
 
@@ -351,7 +356,7 @@ class MainWindow(QMainWindow):
         self.upload_progress.setFormat("Đang chờ")
         self.overall_progress.setValue(0)
         self.overall_progress.setFormat("0%")
-        self.worker = ConversionWorker(files, output, self.settings, get_api_key())
+        self.worker = ConversionWorker(files, output, self.settings, api_key)
         self.worker.file_started.connect(self._file_started)
         self.worker.progress.connect(self._on_progress)
         self.worker.file_finished.connect(self._file_finished)
@@ -381,7 +386,7 @@ class MainWindow(QMainWindow):
             self.upload_progress.setValue(100)
             self.upload_progress.setFormat("Không cần tải AI")
 
-    def _file_finished(self, result: ConversionResult) -> None:
+    def _file_finished(self, result: Any) -> None:
         self.current_file.setText(f"Đã tạo: {result.output_path.name} ✓")
 
     def _file_failed(self, file_path: str, message: str) -> None:
