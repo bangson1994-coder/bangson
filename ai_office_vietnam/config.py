@@ -4,10 +4,20 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import keyring
+try:
+    import keyring
+except ImportError:
+    keyring = None
 
 SERVICE_NAME = "AI Office Việt Nam"
 KEYRING_USER = "gemini_api_key"
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
+LEGACY_MODELS = {
+    "gemini-2.5-flash",
+    "models/gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "models/gemini-2.0-flash",
+}
 
 
 def _qsettings():
@@ -15,9 +25,18 @@ def _qsettings():
     return QSettings()
 
 
+def normalize_model_name(model: str | None) -> str:
+    value = (model or "").strip()
+    if not value or value in LEGACY_MODELS:
+        return DEFAULT_MODEL
+    if value.startswith("models/"):
+        return value.removeprefix("models/")
+    return value
+
+
 @dataclass(slots=True)
 class AppSettings:
-    model: str = "gemini-2.5-flash"
+    model: str = DEFAULT_MODEL
     font_name: str = "Times New Roman"
     font_size: int = 14
     line_spacing: float = 1.5
@@ -33,9 +52,11 @@ class AppSettings:
     @classmethod
     def load(cls) -> "AppSettings":
         store = _qsettings()
-        default_output = str(Path.home() / "Documents" / "AI Office Output")
+        default_output = str(Path.home() / "Documents" / "Đổi PDF sang Word - Kết quả")
+        model = normalize_model_name(str(store.value("gemini/model", DEFAULT_MODEL)))
+        store.setValue("gemini/model", model)
         return cls(
-            model=str(store.value("gemini/model", "gemini-2.5-flash")),
+            model=model,
             font_name=str(store.value("document/font_name", "Times New Roman")),
             font_size=int(store.value("document/font_size", 14)),
             line_spacing=float(store.value("document/line_spacing", 1.5)),
@@ -50,6 +71,7 @@ class AppSettings:
         )
 
     def save(self) -> None:
+        self.model = normalize_model_name(self.model)
         store = _qsettings()
         store.setValue("gemini/model", self.model)
         store.setValue("document/font_name", self.font_name)
@@ -71,6 +93,8 @@ def get_api_key() -> str:
     if env_key:
         return env_key
     try:
+        if keyring is None:
+            return str(_qsettings().value("gemini/api_key_fallback", "")).strip()
         return (keyring.get_password(SERVICE_NAME, KEYRING_USER) or "").strip()
     except Exception:
         return str(_qsettings().value("gemini/api_key_fallback", "")).strip()
@@ -79,6 +103,8 @@ def get_api_key() -> str:
 def save_api_key(api_key: str) -> None:
     api_key = api_key.strip()
     try:
+        if keyring is None:
+            raise RuntimeError("Không có keyring")
         if api_key:
             keyring.set_password(SERVICE_NAME, KEYRING_USER, api_key)
         else:
