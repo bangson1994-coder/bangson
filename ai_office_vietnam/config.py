@@ -1,13 +1,10 @@
 from __future__ import annotations
 
+import importlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
-
-try:
-    import keyring
-except ImportError:
-    keyring = None
+from types import ModuleType
 
 SERVICE_NAME = "AI Office Việt Nam"
 KEYRING_USER = "gemini_api_key"
@@ -22,7 +19,16 @@ LEGACY_MODELS = {
 
 def _qsettings():
     from PySide6.QtCore import QSettings
+
     return QSettings()
+
+
+def _load_keyring() -> ModuleType | None:
+    """Nạp keyring khi thật sự cần, tránh làm chậm màn hình khởi động."""
+    try:
+        return importlib.import_module("keyring")
+    except ImportError:
+        return None
 
 
 def normalize_model_name(model: str | None) -> str:
@@ -92,6 +98,8 @@ def get_api_key() -> str:
     env_key = os.getenv("GEMINI_API_KEY", "").strip()
     if env_key:
         return env_key
+
+    keyring = _load_keyring()
     try:
         if keyring is None:
             return str(_qsettings().value("gemini/api_key_fallback", "")).strip()
@@ -102,6 +110,7 @@ def get_api_key() -> str:
 
 def save_api_key(api_key: str) -> None:
     api_key = api_key.strip()
+    keyring = _load_keyring()
     try:
         if keyring is None:
             raise RuntimeError("Không có keyring")
