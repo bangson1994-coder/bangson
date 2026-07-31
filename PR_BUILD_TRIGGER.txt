@@ -1,0 +1,1 @@
+Kích hoạt kiểm thử và build EXE qua pull request.
